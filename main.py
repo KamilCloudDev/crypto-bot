@@ -1,20 +1,27 @@
+import os
 import time
 import requests
 import math
 from decimal import Decimal, ROUND_DOWN
 from binance.client import Client
+from dotenv import load_dotenv
 
-# Klucze API (Upewnij się, że masz swoje API Key & Secret)
-from config import API_KEY, API_SECRET
+# Wczytywanie zmiennych z pliku .env (jeśli uruchamiasz lokalnie)
+load_dotenv()
 
+# Pobieranie kluczy ze zmiennych środowiskowych
+API_KEY = os.getenv('BINANCE_API_KEY')
+API_SECRET = os.getenv('BINANCE_API_SECRET')
 
 # Inicjalizacja klienta Binance Spot
+if not API_KEY or not API_SECRET:
+    print("❌ BŁĄD: Brak kluczy API! Upewnij się, że plik .env jest poprawny.")
+    exit(1)
+
 client = Client(API_KEY, API_SECRET)
 
 SYMBOL = "BTCPLN"  # Para handlowa
-#SYMBOL = "BTCUSDC"
-MIN_TRADE_AMOUNT = 25  # Minimalna kwota do handlu (25 PLN)
-MAX_ILOSC_ZLECEN = 50
+MAX_ILOSC_ZLECEN = 100
 
 def round_to_tick(price, tick_size):
     d_price = Decimal(str(price))
@@ -22,79 +29,49 @@ def round_to_tick(price, tick_size):
     return float((d_price // d_tick) * d_tick)
 
 def log_message(message):
-    """ Zapisuje wiadomości do pliku log.txt, dodając je na początku """
-
-    # Pobierz aktualną datę i godzinę
+    """ Zapisuje wiadomości do pliku logbtcpln.txt, dodając je na początku """
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
 
-    # Odczytanie zawartości pliku, jeśli istnieje
     try:
-        with open("logbtcpln.txt", "r") as log_file:
-            content = log_file.read()
-    except FileNotFoundError:
-        # Jeśli plik nie istnieje, to po prostu stwórz pusty plik
+        if os.path.exists("logbtcpln.txt"):
+            with open("logbtcpln.txt", "r") as log_file:
+                content = log_file.read()
+        else:
+            content = ""
+    except Exception:
         content = ""
 
-    # Nowa zawartość, z datą i wiadomością na początku
     new_content = f"[{timestamp}] {message}\n" + content
 
-    # Zapisanie nowej zawartości do pliku (nadpisuje plik)
     with open("logbtcpln.txt", "w") as log_file:
         log_file.write(new_content)
 
-    # Wyświetlenie wiadomości w konsoli
-    print(message)
+    print(f"[{timestamp}] {message}")
 
 def synchronize_binance_time():
     """ Synchronizuje czas z giełdą Binance """
-
-    # Pobieranie czasu servera
     server_time = client.get_server_time()['serverTime']
-
-    # Pobieranie czasu lokalnego
     local_time = int(time.time() * 1000)
-
-    # Obliczanie różnicy czasu servera - lokalnego
-    time_difference = server_time - local_time
-
-    # Ustawienie różnicy czasu u klienta
-    client.timestamp_offset = time_difference
+    client.timestamp_offset = server_time - local_time
 
 def get_open_sell_orders():
-    """ Pobiera ID zlecenia o najniższej i najwyższej cenie sprzedaży """
-
-    # Pobieranie otwartych zleceń
+    """ Pobiera ceny najniższego i najwyższego zlecenia sprzedaży """
     open_orders = client.get_open_orders(symbol=SYMBOL)
-
-    # Filtrujemy tylko zlecenia sprzedaży SELL
     sell_orders = [order for order in open_orders if order["side"] == "SELL"]
 
-
-    # Sprawdzenie czy są otwarte zlecenia sprzedaży
     if not sell_orders:
-        print("Brak otwartych zleceń sprzedaży.")
         return None
 
-    # Znajdujemy zlecenia o najniższej i najwyższej cenie
-    min_price_order = min(sell_orders, key=lambda x: float(x["price"]))
-    max_price_order = max(sell_orders, key=lambda x: float(x["price"]))
+    # Sort sell orders by price in ascending order
+    sell_orders.sort(key=lambda x: float(x["price"]))
 
-    #print(f"🟢 Najtańsze zlecenie: OrderID {min_price_order['orderId']}, Cena: {min_price_order['pr ice']}" )
-    #print(f"🔴Najdroższe zlecenie: OrderID {max_price_order['orderId']}, Cena: {max_price_order['price']}")
+    return sell_orders
 
-    return float(min_price_order['price']), float(max_price_order['price'])
+def buy_btc_for_pln(amount_pln, symbol_name):
+    symbol_name = symbol_name.upper()
+    price = float(client.get_symbol_ticker(symbol=symbol_name)["price"])
+    exchange_info = client.get_symbol_info(symbol_name)
 
-def buy_btc_for_pln(amount_pln, SYMBOL):
-    SYMBOL = SYMBOL.upper()  # upewnij się, że jest BTCPLN
-
-    # 1. Pobierz cenę BTC/PLN
-    price = float(client.get_symbol_ticker(symbol=SYMBOL)["price"])
-    print(f"Aktualna cena BTC: {price} PLN")
-
-    # 2. Pobierz informacje o symbolu
-    exchange_info = client.get_symbol_info(SYMBOL)
-
-    # 3. Pobierz step_size, tick_size i minNotional
     step_size = 0.0
     tick_size = 0.0
     min_notional = 0.0
@@ -106,103 +83,133 @@ def buy_btc_for_pln(amount_pln, SYMBOL):
         if f["filterType"] == "MIN_NOTIONAL":
             min_notional = float(f["minNotional"])
 
-    # 4. Sprawdź minimalną wartość zlecenia
     if amount_pln < min_notional:
-        print(f"❌ Kwota {amount_pln} PLN jest zbyt niska. Minimalna wartość to {min_notional} PLN.")
+        log_message(f"❌ Kwota {amount_pln} PLN jest zbyt niska. Min: {min_notional}")
         return None
 
-    # 5. Oblicz ilość BTC za podaną kwotę PLN
     btc_amount = amount_pln / price
-
-    # 6. Zaokrągl ilość BTC do step_size
     btc_amount = math.floor(btc_amount / step_size) * step_size
     btc_amount_str = "{:.8f}".format(btc_amount).rstrip('0').rstrip('.')
 
-    print(f"✅ Kupuję {btc_amount_str} BTC za {amount_pln} PLN")
-
-    # 7. Market BUY
-    order = client.order_market_buy(symbol=SYMBOL, quantity=btc_amount_str)
-    print("✅ Zlecenie BUY złożone:", order)
+    log_message(f"✅ Kupuję {btc_amount_str} BTC za {amount_pln} PLN")
+    order = client.order_market_buy(symbol=symbol_name, quantity=btc_amount_str)
 
     time.sleep(1)
 
-    # Oblicz średnią cenę zakupu
     avg_price = float(order['cummulativeQuoteQty']) / float(order['executedQty'])
-
-    # Oblicz cenę sprzedaży z narzutem 1%
     raw_sell_price = avg_price * 1.01
     sell_price = round_to_tick(raw_sell_price, tick_size)
 
+    sell_quantity = float(order['executedQty']) * 0.999
+    sell_quantity = round(sell_quantity, 6)
+    sell_quantity_str = format(Decimal(str(sell_quantity)), 'f').rstrip('0').rstrip('.')
 
-    # Ilość do sprzedaży (opcjonalnie możesz zmniejszyć nieco, aby uniknąć błędów typu "lot size")
-    sell_quantity = float(order['executedQty']) * 0.999  # np. zostawiamy 0.1% na prowizję
-    sell_quantity = round(sell_quantity, 6)  # zależy od symbolu – np. BTCUSDT ma precision 6
-
-    print(f"📈 Wystawiam SELL LIMIT: {sell_quantity} BTC po {sell_price} PLN (+1%)")
-
-
-    # 9. Limit SELL
+    log_message(f"📈 Wystawiam SELL LIMIT: {sell_quantity_str} BTC po {sell_price} PLN")
     sell_order = client.order_limit_sell(
-        symbol=SYMBOL,
-        quantity=sell_quantity,
+        symbol=symbol_name,
+        quantity=sell_quantity_str,
         price=sell_price
     )
-    print("✅ Zlecenie SELL złożone:", sell_order)
-
     return order, sell_order
 
 def floor_5(value):
     return math.floor(value * 10**5) / 10**5
 
 def get_balance():
-    """ Pobiera dostępne saldo danego assetu """
     balances = client.get_account()["balances"]
     price = float(client.get_symbol_ticker(symbol=SYMBOL)["price"])
 
-    for balance in balances:
-        if balance["asset"] == "BTC":
-            #print(type(balance["free"]))
-            balancebtc = float(balance["free"])+float(balance["locked"])
-            #balance = str(balance)
-            balancebtc = balancebtc*price
-        if balance["asset"] == "PLN":
-            balancepln = float(balance["free"])+float(balance["locked"])
+    balancebtc = 0.0
+    balancepln = 0.0
 
-    wielkosc_zlecenia = floor_5((balancebtc+balancepln)/MAX_ILOSC_ZLECEN)
+    for b in balances:
+        if b["asset"] == "BTC":
+            balancebtc = (float(b["free"]) + float(b["locked"])) * price
+        if b["asset"] == "PLN":
+            balancepln = float(b["free"]) + float(b["locked"])
 
-    return balancebtc,balancepln,balancebtc+balancepln,wielkosc_zlecenia
+    wielkosc_zlecenia = floor_5((balancebtc + balancepln) / MAX_ILOSC_ZLECEN)
+    return balancebtc, balancepln, balancebtc + balancepln, wielkosc_zlecenia
 
 def get_ath():
     klines = client.get_historical_klines(SYMBOL, Client.KLINE_INTERVAL_1WEEK, "8 year ago UTC")
-    prices = [float(c[2]) for c in klines]  # high
+    prices = [float(c[2]) for c in klines]
     return max(prices)
 
+def get_bigest_sell_order():
+    open_orders = client.get_open_orders(symbol=SYMBOL)
+    sell_orders = [order for order in open_orders if order["side"] == "SELL"]
 
+    if not sell_orders:
+        return None, None
 
-while True:
+    highest_price_sell_order = max(sell_orders, key=lambda order: float(order["price"]))
+    return highest_price_sell_order.get("orderId"), highest_price_sell_order.get("origQty")
 
+def cancel_specific_order(symbol, order_id):
     try:
-        print("Working...")
+        result = client.cancel_order(symbol=symbol, orderId=order_id)
+        log_message(f"✅ Anulowano zlecenie ID: {order_id}")
+        return result
+    except Exception as e:
+        log_message(f"❌ Błąd anulowania {order_id}: {e}")
+        return None
+
+def sell_action(symbol, quantity, price):
+    sell_order = client.order_limit_sell(
+        symbol=symbol,
+        quantity=quantity,
+        price=price
+    )
+    log_message(f"✅ Zlecenie SELL złożone: {price}")
+    return sell_order
+
+# GŁÓWNA PĘTLA PROGRAMU
+while True:
+    try:
+        log_message("Runing...")
         synchronize_binance_time()
 
+        open_sell_orders = get_open_sell_orders()
+        if open_sell_orders and len(open_sell_orders) > 2:
+            orders_to_cancel = sorted(open_sell_orders, key=lambda x: float(x['price']), reverse=True)
+            while len(orders_to_cancel) > 2:
+                order_to_cancel = orders_to_cancel.pop(0)
+                # cancel_specific_order(SYMBOL, order_to_cancel['orderId'])
+                
 
 
-        if get_balance()[1] >= get_balance()[3]:
-            if get_open_sell_orders() == None:
-                buy_btc_for_pln(get_balance()[3], SYMBOL)
-                print("Buy")
+        balances = get_balance()
+        current_pln_balance = balances[1]
+        trade_size_pln = balances[3]
+
+        ath = get_ath()
+        price_ticker = float(client.get_symbol_ticker(symbol=SYMBOL)["price"])
+        
+        open_orders_info = get_open_sell_orders()
+
+
+        if current_pln_balance >= trade_size_pln:
+            if open_orders_info is None:
+                buy_btc_for_pln(trade_size_pln, SYMBOL)
             else:
-                min_order = get_open_sell_orders()[0]
-                price = float(client.get_symbol_ticker(symbol=SYMBOL)["price"])
-
-                if price <= min_order - ((min_order*0.005 + (get_ath()*0.01))):
-                    print("Buy")
-                    buy_btc_for_pln(get_balance()[3], SYMBOL)
+                min_order_price = float(open_orders_info[0]['price'])
+                # Warunek wejścia (kupujemy jeśli cena spadnie o odpowiedni procent)
+                if price_ticker <= min_order_price - ((min_order_price * 0.00125 + (ath * 0.01))):
+                    buy_btc_for_pln(trade_size_pln, SYMBOL)
+        else:
+            # Scenariusz gdy brakuje PLN na koncie - zarządzanie istniejącymi zleceniami
+            if open_orders_info is not None:
+                min_order_price = float(open_orders_info[0]['price'])
+                if price_ticker <= min_order_price - ((min_order_price * 0.00125 + (ath * 0.01))):
+                    log_message("Za mały balans PLN - przesuwam najwyższe zlecenie niżej")
+                    order_id, quantity = get_bigest_sell_order()
+                    if order_id:
+                        cancel_specific_order(SYMBOL, order_id)
+                        new_sell_price = int(price_ticker + (price_ticker * 0.01))
+                        sell_action(SYMBOL, quantity, new_sell_price)
 
     except Exception as e:
-
-        log_message(f"X Inny błąd: {e}")
-
-        pass
+        log_message(f"X Błąd główny: {e}")
 
     time.sleep(5)
