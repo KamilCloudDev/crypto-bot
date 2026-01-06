@@ -80,16 +80,16 @@ Bot implementuje strategię grid trading, która polega na składaniu zleceń ku
 1.  **Zbuduj obraz Dockera:**
     Otwórz terminal w katalogu projektu i wykonaj polecenie:
     ```bash
-    docker build -t btc-bot-final .
+    docker build -t bot-image .
     ```
 
 2.  **Uruchom kontener:**
     Uruchom bota w tle za pomocą polecenia:
     ```bash
-    docker run -d --name btc-pln-bot --restart always --env-file .env btc-bot-final
+    docker run -d --name bot --restart always --env-file .env bot-image
     ```
     - `-d`: uruchomienie w trybie "detached" (w tle).
-    - `--name btc-pln-bot`: nadanie nazwy kontenerowi.
+    - `--name bot`: nadanie nazwy kontenerowi.
     - `--restart always`: automatyczne ponowne uruchomienie w przypadku awarii.
     - `--env-file .env`: wstrzyknięcie zmiennych środowiskowych z pliku `.env`.
 
@@ -111,7 +111,7 @@ Dla ułatwienia zarządzania botem w środowiskach Bash-compatible (np. Linux, W
 
 Aby na żywo śledzić działanie bota, użyj polecenia:
 ```bash
-docker logs -f btc-pln-bot
+docker logs -f bot
 ```
 
 ---
