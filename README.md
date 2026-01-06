@@ -46,6 +46,12 @@ Bot implementuje strategię grid trading, która polega na składaniu zleceń ku
     - Wszystkie operacje są logowane do pliku `logbtcpln.txt` z dokładnym znacznikiem czasowym.
     - Bot podejmuje decyzje co **5 sekund**, zapewniając szybką reakcję na zmiany rynkowe.
 
+7.  **Proaktywne Przesuwanie Zlecenia (Nowość):**
+    - Jeśli na rynku istnieje **tylko jedno** zlecenie sprzedaży, a aktualna cena rynkowa zbliży się do niego na odległość **0.5%**, bot automatycznie:
+        1. Anuluje to zlecenie.
+        2. Wystawia nowe zlecenie sprzedaży z ceną o **1% wyższą** od *aktualnej ceny rynkowej*.
+    - Zapobiega to "utknięciu" zlecenia blisko ceny rynkowej i proaktywnie podnosi próg sprzedaży, gdy rynek idzie w górę.
+
 ---
 
 ## 3. Struktura Projektu

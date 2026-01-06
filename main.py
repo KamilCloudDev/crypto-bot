@@ -188,6 +188,34 @@ while True:
         
         open_orders_info = get_open_sell_orders()
 
+        # Nowa logika: przesuwanie zlecenia w górę, gdy jest tylko jedno
+        if open_orders_info and len(open_orders_info) == 1:
+            single_order = open_orders_info[0]
+            single_order_price = float(single_order['price'])
+            
+            # Sprawdź, czy cena rynkowa to co najmniej 99.5% ceny zlecenia
+            if price_ticker >= single_order_price * 0.995:
+                log_message(f"Cena {price_ticker} blisko zlecenia {single_order_price}. Przesuwam je o 1% wyżej.")
+                
+                order_id_to_cancel = single_order['orderId']
+                quantity_to_resell = single_order['origQty']
+                
+                cancel_specific_order(SYMBOL, order_id_to_cancel)
+                
+                # Pobierz tick_size, aby poprawnie zaokrąglić cenę
+                exchange_info = client.get_symbol_info(SYMBOL)
+                tick_size = 0.0
+                for f in exchange_info['filters']:
+                    if f['filterType'] == 'PRICE_FILTER':
+                        tick_size = float(f['tickSize'])
+
+                new_sell_price = round_to_tick(price_ticker * 1.01, tick_size)
+                
+                sell_action(SYMBOL, quantity_to_resell, new_sell_price)
+                
+                # Pomiń resztę pętli, aby uniknąć konfliktów
+                time.sleep(5)
+                continue
 
         if current_pln_balance >= trade_size_pln:
             if open_orders_info is None:
