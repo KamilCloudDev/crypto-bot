@@ -92,11 +92,25 @@ Bot implementuje strategię grid trading, która polega na składaniu zleceń ku
     - `--restart always`: automatyczne ponowne uruchomienie w przypadku awarii.
     - `--env-file .env`: wstrzyknięcie zmiennych środowiskowych z pliku `.env`.
 
-### c. Monitorowanie Logów
+### c. Uruchomienie za pomocą skryptu start.sh (dla systemów Linux/WSL)
+
+Dla ułatwienia zarządzania botem w środowiskach Bash-compatible (np. Linux, WSL, Git Bash), dołączono skrypt `start.sh`. Automatyzuje on budowanie obrazu, usuwanie starego kontenera i uruchamianie nowego z odpowiednimi parametrami.
+
+1.  **Nadaj uprawnienia do wykonania:**
+    ```bash
+    chmod +x start.sh
+    ```
+2.  **Uruchom skrypt:**
+    ```bash
+    ./start.sh
+    ```
+    Skrypt automatycznie zbuduje obraz Docker, usunie poprzedni kontener (jeśli istnieje) i uruchomi nową instancję bota. Po uruchomieniu, wyświetli ostatnie 10 linii logów bota.
+
+### d. Monitorowanie Logów
 
 Aby na żywo śledzić działanie bota, użyj polecenia:
 ```bash
-docker logs -f moj-bot
+docker logs -f btc-pln-bot
 ```
 
 ---
