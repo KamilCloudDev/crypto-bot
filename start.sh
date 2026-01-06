@@ -27,19 +27,19 @@ fi
 chmod 666 "$LOG_FILE"
 
 # 2. Budowanie obrazu
-docker build -t btc-bot-final .
+docker build -t bot-image .
 
 # 3. Usuwanie starego kontenera
-docker rm -f btc-pln-bot || true
+docker rm -f bot || true
 
 # 4. Uruchomienie bota
 # Zmieniono --env-file na lokalny plik .env
 docker run -d \
-  --name btc-pln-bot \
+  --name bot \
   --env-file "$ENV_PATH" \
   --restart always \
   -v "$(pwd)/$LOG_FILE:/app/$LOG_FILE" \
-  btc-bot-final
+  bot-image
 
 echo "✅ Gotowe! Bot działa korzystając z kluczy w $ENV_PATH."
 echo "------------------------------------------"
