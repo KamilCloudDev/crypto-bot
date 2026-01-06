@@ -53,6 +53,7 @@ Bot implementuje strategię grid trading, która polega na składaniu zleceń ku
 ```
 /
 ├─ main.py           # Główna logika bota
+├─ start.sh          # Skrypt do uruchamiania bota
 ├─ .env              # Plik konfiguracyjny (klucze API)
 ├─ requirements.txt  # Zależności Python
 ├─ .gitignore        # Pliki ignorowane przez Git
@@ -79,16 +80,16 @@ Bot implementuje strategię grid trading, która polega na składaniu zleceń ku
 1.  **Zbuduj obraz Dockera:**
     Otwórz terminal w katalogu projektu i wykonaj polecenie:
     ```bash
-    docker build -t crypto-bot .
+    docker build -t btc-bot-final .
     ```
 
 2.  **Uruchom kontener:**
     Uruchom bota w tle za pomocą polecenia:
     ```bash
-    docker run -d --name moj-bot --restart always --env-file .env crypto-bot
+    docker run -d --name btc-pln-bot --restart always --env-file .env btc-bot-final
     ```
     - `-d`: uruchomienie w trybie "detached" (w tle).
-    - `--name moj-bot`: nadanie nazwy kontenerowi.
+    - `--name btc-pln-bot`: nadanie nazwy kontenerowi.
     - `--restart always`: automatyczne ponowne uruchomienie w przypadku awarii.
     - `--env-file .env`: wstrzyknięcie zmiennych środowiskowych z pliku `.env`.
 

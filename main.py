@@ -175,7 +175,7 @@ while True:
             orders_to_cancel = sorted(open_sell_orders, key=lambda x: float(x['price']), reverse=True)
             while len(orders_to_cancel) > 2:
                 order_to_cancel = orders_to_cancel.pop(0)
-                # cancel_specific_order(SYMBOL, order_to_cancel['orderId'])
+                cancel_specific_order(SYMBOL, order_to_cancel['orderId'])
                 
 
 
