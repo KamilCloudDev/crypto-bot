@@ -1,4 +1,4 @@
-# Crypto Trading Bot
+# Binance-Grid-Engine
 
 Bot do handlu kryptowalutami na giełdzie Binance (Spot), zoptymalizowany do działania w kontenerze Docker.
 
